@@ -37,8 +37,6 @@ import android.widget.Toast;
 import com.example.android.displayingbitmaps.BuildConfig;
 import com.example.android.displayingbitmaps.R;
 import com.example.android.displayingbitmaps.provider.Images;
-import com.example.android.displayingbitmaps.util.ImageCache;
-import com.example.android.displayingbitmaps.util.ImageFetcher;
 import com.example.android.displayingbitmaps.util.Utils;
 
 public class ImageDetailActivity extends FragmentActivity implements OnClickListener {
@@ -46,7 +44,6 @@ public class ImageDetailActivity extends FragmentActivity implements OnClickList
     public static final String EXTRA_IMAGE = "extra_image";
 
     private ImagePagerAdapter mAdapter;
-    private ImageFetcher mImageFetcher;
     private ViewPager mPager;
 
     @TargetApi(VERSION_CODES.HONEYCOMB)
@@ -71,15 +68,6 @@ public class ImageDetailActivity extends FragmentActivity implements OnClickList
         // we shouldn't divide by 2, but this will use more memory and require a larger memory
         // cache.
         final int longest = (height > width ? height : width) / 2;
-
-        ImageCache.ImageCacheParams cacheParams =
-                new ImageCache.ImageCacheParams(this, IMAGE_CACHE_DIR);
-        cacheParams.setMemCacheSizePercent(0.25f); // Set memory cache to 25% of app memory
-
-        // The ImageFetcher takes care of loading images into our ImageView children asynchronously
-        mImageFetcher = new ImageFetcher(this, longest);
-        mImageFetcher.addImageCache(getSupportFragmentManager(), cacheParams);
-        mImageFetcher.setImageFadeIn(false);
 
         // Set up ViewPager and backing adapter
         mAdapter = new ImagePagerAdapter(getSupportFragmentManager(), Images.imageUrls.length);
@@ -128,20 +116,16 @@ public class ImageDetailActivity extends FragmentActivity implements OnClickList
     @Override
     public void onResume() {
         super.onResume();
-        mImageFetcher.setExitTasksEarly(false);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        mImageFetcher.setExitTasksEarly(true);
-        mImageFetcher.flushCache();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mImageFetcher.closeCache();
     }
 
     @Override
@@ -151,7 +135,6 @@ public class ImageDetailActivity extends FragmentActivity implements OnClickList
                 NavUtils.navigateUpFromSameTask(this);
                 return true;
             case R.id.clear_cache:
-                mImageFetcher.clearCache();
                 Toast.makeText(
                         this, R.string.clear_cache_complete_toast,Toast.LENGTH_SHORT).show();
                 return true;
@@ -163,13 +146,6 @@ public class ImageDetailActivity extends FragmentActivity implements OnClickList
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
         return true;
-    }
-
-    /**
-     * Called by the ViewPager child fragments to load images via the one ImageFetcher
-     */
-    public ImageFetcher getImageFetcher() {
-        return mImageFetcher;
     }
 
     /**

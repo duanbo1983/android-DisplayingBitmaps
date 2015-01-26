@@ -39,12 +39,13 @@ import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.android.volley.toolbox.ImageLoader;
+import com.android.volley.toolbox.NetworkImageView;
 import com.example.android.common.logger.Log;
 import com.example.android.displayingbitmaps.BuildConfig;
 import com.example.android.displayingbitmaps.R;
 import com.example.android.displayingbitmaps.provider.Images;
-import com.example.android.displayingbitmaps.util.ImageCache;
-import com.example.android.displayingbitmaps.util.ImageFetcher;
+import com.example.android.displayingbitmaps.util.RequestQueueManager;
 import com.example.android.displayingbitmaps.util.Utils;
 
 /**
@@ -61,7 +62,7 @@ public class ImageGridFragment extends Fragment implements AdapterView.OnItemCli
     private int mImageThumbSize;
     private int mImageThumbSpacing;
     private ImageAdapter mAdapter;
-    private ImageFetcher mImageFetcher;
+    private ImageLoader mImageLoader;
 
     /**
      * Empty constructor as per the Fragment documentation
@@ -77,16 +78,7 @@ public class ImageGridFragment extends Fragment implements AdapterView.OnItemCli
         mImageThumbSpacing = getResources().getDimensionPixelSize(R.dimen.image_thumbnail_spacing);
 
         mAdapter = new ImageAdapter(getActivity());
-
-        ImageCache.ImageCacheParams cacheParams =
-                new ImageCache.ImageCacheParams(getActivity(), IMAGE_CACHE_DIR);
-
-        cacheParams.setMemCacheSizePercent(0.25f); // Set memory cache to 25% of app memory
-
-        // The ImageFetcher takes care of loading images into our ImageView children asynchronously
-        mImageFetcher = new ImageFetcher(getActivity(), mImageThumbSize);
-        mImageFetcher.setLoadingImage(R.drawable.empty_photo);
-        mImageFetcher.addImageCache(getActivity().getSupportFragmentManager(), cacheParams);
+        mImageLoader = RequestQueueManager.getInstance(getActivity().getApplicationContext()).getImageLoader();
     }
 
     @Override
@@ -97,25 +89,6 @@ public class ImageGridFragment extends Fragment implements AdapterView.OnItemCli
         final GridView mGridView = (GridView) v.findViewById(R.id.gridView);
         mGridView.setAdapter(mAdapter);
         mGridView.setOnItemClickListener(this);
-        mGridView.setOnScrollListener(new AbsListView.OnScrollListener() {
-            @Override
-            public void onScrollStateChanged(AbsListView absListView, int scrollState) {
-                // Pause fetcher to ensure smoother scrolling when flinging
-                if (scrollState == AbsListView.OnScrollListener.SCROLL_STATE_FLING) {
-                    // Before Honeycomb pause image loading on scroll to help with performance
-                    if (!Utils.hasHoneycomb()) {
-                        mImageFetcher.setPauseWork(true);
-                    }
-                } else {
-                    mImageFetcher.setPauseWork(false);
-                }
-            }
-
-            @Override
-            public void onScroll(AbsListView absListView, int firstVisibleItem,
-                    int visibleItemCount, int totalItemCount) {
-            }
-        });
 
         // This listener is used to get the final width of the GridView and then calculate the
         // number of columns and the width of each column. The width of each column is variable
@@ -155,22 +128,17 @@ public class ImageGridFragment extends Fragment implements AdapterView.OnItemCli
     @Override
     public void onResume() {
         super.onResume();
-        mImageFetcher.setExitTasksEarly(false);
         mAdapter.notifyDataSetChanged();
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        mImageFetcher.setPauseWork(false);
-        mImageFetcher.setExitTasksEarly(true);
-        mImageFetcher.flushCache();
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        mImageFetcher.closeCache();
     }
 
     @TargetApi(VERSION_CODES.JELLY_BEAN)
@@ -199,7 +167,6 @@ public class ImageGridFragment extends Fragment implements AdapterView.OnItemCli
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.clear_cache:
-                mImageFetcher.clearCache();
                 Toast.makeText(getActivity(), R.string.clear_cache_complete_toast,
                         Toast.LENGTH_SHORT).show();
                 return true;
@@ -287,13 +254,13 @@ public class ImageGridFragment extends Fragment implements AdapterView.OnItemCli
             }
 
             // Now handle the main ImageView thumbnails
-            ImageView imageView;
+            NetworkImageView imageView;
             if (convertView == null) { // if it's not recycled, instantiate and initialize
-                imageView = new RecyclingImageView(mContext);
+                imageView = new NetworkImageView(mContext);
                 imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
                 imageView.setLayoutParams(mImageViewLayoutParams);
             } else { // Otherwise re-use the converted view
-                imageView = (ImageView) convertView;
+                imageView = (NetworkImageView) convertView;
             }
 
             // Check the height matches our calculated column width
@@ -301,11 +268,9 @@ public class ImageGridFragment extends Fragment implements AdapterView.OnItemCli
                 imageView.setLayoutParams(mImageViewLayoutParams);
             }
 
-            // Finally load the image asynchronously into the ImageView, this also takes care of
-            // setting a placeholder image while the background thread runs
-            mImageFetcher.loadImage(Images.imageThumbUrls[position - mNumColumns], imageView);
+            imageView.setDefaultImageResId(R.drawable.empty_photo);
+            imageView.setImageUrl(Images.imageThumbUrls[position - mNumColumns], mImageLoader);
             return imageView;
-            //END_INCLUDE(load_gridview_item)
         }
 
         /**
@@ -321,7 +286,6 @@ public class ImageGridFragment extends Fragment implements AdapterView.OnItemCli
             mItemHeight = height;
             mImageViewLayoutParams =
                     new GridView.LayoutParams(LayoutParams.MATCH_PARENT, mItemHeight);
-            mImageFetcher.setImageSize(height);
             notifyDataSetChanged();
         }
 

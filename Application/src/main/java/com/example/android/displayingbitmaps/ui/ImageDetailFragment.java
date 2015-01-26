@@ -22,11 +22,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 
+import com.android.volley.toolbox.ImageLoader;
+import com.android.volley.toolbox.NetworkImageView;
 import com.example.android.displayingbitmaps.R;
-import com.example.android.displayingbitmaps.util.ImageFetcher;
-import com.example.android.displayingbitmaps.util.ImageWorker;
+import com.example.android.displayingbitmaps.util.RequestQueueManager;
 import com.example.android.displayingbitmaps.util.Utils;
 
 /**
@@ -35,8 +35,8 @@ import com.example.android.displayingbitmaps.util.Utils;
 public class ImageDetailFragment extends Fragment {
     private static final String IMAGE_DATA_EXTRA = "extra_image_data";
     private String mImageUrl;
-    private ImageView mImageView;
-    private ImageFetcher mImageFetcher;
+    private NetworkImageView mImageView;
+    private ImageLoader mImageLoader;
 
     /**
      * Factory method to generate a new instance of the fragment given an image number.
@@ -74,7 +74,8 @@ public class ImageDetailFragment extends Fragment {
             Bundle savedInstanceState) {
         // Inflate and locate the main ImageView
         final View v = inflater.inflate(R.layout.image_detail_fragment, container, false);
-        mImageView = (ImageView) v.findViewById(R.id.imageView);
+        mImageView = (NetworkImageView) v.findViewById(R.id.imageView);
+        mImageView.setDefaultImageResId(R.drawable.empty_photo);
         return v;
     }
 
@@ -85,8 +86,8 @@ public class ImageDetailFragment extends Fragment {
         // Use the parent activity to load the image asynchronously into the ImageView (so a single
         // cache can be used over all pages in the ViewPager
         if (ImageDetailActivity.class.isInstance(getActivity())) {
-            mImageFetcher = ((ImageDetailActivity) getActivity()).getImageFetcher();
-            mImageFetcher.loadImage(mImageUrl, mImageView);
+            mImageLoader = RequestQueueManager.getInstance(getActivity().getApplicationContext()).getImageLoader();
+            mImageView.setImageUrl(mImageUrl, mImageLoader);
         }
 
         // Pass clicks on the ImageView to the parent activity to handle
@@ -98,10 +99,5 @@ public class ImageDetailFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (mImageView != null) {
-            // Cancel any pending image work
-            ImageWorker.cancelWork(mImageView);
-            mImageView.setImageDrawable(null);
-        }
     }
 }
