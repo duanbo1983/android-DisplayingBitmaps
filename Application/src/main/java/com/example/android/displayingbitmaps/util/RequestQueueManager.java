@@ -6,6 +6,7 @@ import android.support.v4.util.LruCache;
 
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
+import com.android.volley.VolleyLog;
 import com.android.volley.toolbox.ImageLoader;
 import com.android.volley.toolbox.Volley;
 
@@ -37,6 +38,8 @@ public class RequestQueueManager {
                         cache.put(url, bitmap);
                     }
                 });
+
+        VolleyLog.DEBUG = true;
     }
 
     public static synchronized RequestQueueManager getInstance(Context context) {
